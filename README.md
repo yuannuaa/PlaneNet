@@ -1,96 +1,148 @@
-# PlaneNet: Piece-wise Planar Reconstruction from a Single RGB Image
-By Chen Liu, Jimei Yang, Duygu Ceylan, Ersin Yumer, and Yasutaka Furukawa
+# PlanarReconstruction
 
-## Introduction
+***
 
-This paper presents the first end-to-end neural architecture for piece-wise planar reconstruction from a single RGB image. The proposed network, PlaneNet, learns to directly infer a set of plane parameters and corresponding plane segmentation masks. For more details, please refer to our CVPR 2018 [paper](http://art-programmer.github.io/planenet/paper.pdf) or visit our [project website](http://art-programmer.github.io/planenet.html).
+**Personal mark:**
 
-## Updates
-We developed a better technique, PlaneRCNN, for piece-wise planar detection as described in our recent arXiv [paper](https://arxiv.org/abs/1812.04072). Unfortunately, we cannot release the code and data yet.
+PyTorch implementation of our CVPR 2019 paper:
 
-We add script for extracting plane information from the original ScanNet dataset and rendering 3D planar segmentation results to 2D views. Please see the README in folder *data_preparation/* for details. Note that we made some modifications to the heuristic-heavy plane fitting algorithms when cleaning up the messy codes developed over time. So the plane fitting results will be slightly different with the training data we used (provided in the *.tfrecords* files).
+[Single-Image Piece-wise Planar 3D Reconstruction via Associative Embedding](https://arxiv.org/pdf/1902.09777.pdf)
 
-PyTorch training and testing codes are available now (still experimental and without the CRF module).
-## Dependencies
-Python 2.7, TensorFlow (>= 1.3), numpy, opencv 3.
+Zehao Yu\*,
+[Jia Zheng](https://bertjiazheng.github.io/)\*,
+[Dongze Lian](https://svip-lab.github.io/team/liandz.html),
+[Zihan Zhou](https://faculty.ist.psu.edu/zzhou/Home.html),
+[Shenghua Gao](http://sist.shanghaitech.edu.cn/sist_en/2018/0820/c3846a31775/page.htm)
 
-## Getting started
-### Compilation
-Please run the following commands to compile the library for the [crfasrnn module](https://github.com/sadeepj/crfasrnn_keras).
+(\* Equal Contribution)
+
+<img src="misc/pipeline.jpg" width="800">
+
+## Getting Started
+
+### Installation
+
+Clone repository and use [git-lfs](https://git-lfs.github.com/) to fetch the trained model (or download [here](https://drive.google.com/file/d/1Aa1Jb0CGpiYXKHeTwpXAwcwu_yEqdkte/view?usp=sharing)):
+
 ```bash
-cd cpp
-sh compile.sh
-cd ..
+git clone git@github.com:svip-lab/PlanarReconstruction.git
 ```
 
-To train the network, you also need to run the following commands to compile the library for computing the set matching loss. You need Eigen (I am using Eigen 3.2.92) for the compilation. (Please see [here](https://github.com/fanhqme/PointSetGeneration) for details.)
+We use Python 3. Create an Anaconda enviroment and install the dependencies:
+
 ```bash
-cd nndistance
-make
-cd ..
+conda create -y -n plane python=3.6
+conda activate plane
+conda install -c menpo opencv
+pip install -r requirements.txt
 ```
 
-### Data preparation
-We convert [ScanNet](http://www.scan-net.org/) data to *.tfrecords* files for training and testing. The training data can be downloaded from [here](https://drive.google.com/open?id=1NyDrgI02ao18WmXyepgVkWGqtM3YS3_4) (or [here](https://wustl.box.com/s/d3vmtei5sin40svky6dcbe2aqhh5tmoz) if you cannont access the previous one), and the validation data can be downloaded from [here](https://drive.google.com/open?id=1kfd-kreGQQLSRNF66t447R9WgDqsTh-3) (or [here](https://mega.nz/#!IvAixABb!PD3wJtXX_6W3qtfKZQtl_P07mYPLwWst3cwbvuTXlSY)).
+**Notice**: the requirements has been updated.
 
-If you download the training data from the BOX link, please run the following command to merge downloaded files into one *.tfrecords* file.
+About torch version:
+
+```
+Could not find a version that satisfies the requirement torch==1.1.0
+```
+
+Using the follows:
+
+```
+pip install torch==1.1.0 -f https://download.pytorch.org/whl/torch_stable.html
+pip install torchvision==0.4.0
+```
+
+
+
+### Downloading and converting data
+
+Please download the *.tfrecords* files for training and testing converted by [PlaneNet](https://github.com/art-programmer/PlaneNet), then convert the *.tfrecords* to *.npz* files:
 
 ```bash
-cat training_data_segments/* > planes_scannet_train.tfrecords
+python data_tools/convert_tfrecords.py --data_type=train --input_tfrecords_file=/path/to/planes_scannet_train.tfrecords --output_dir=/path/to/save/processd/data
+python data_tools/convert_tfrecords.py --data_type=val --input_tfrecords_file=/path/to/planes_scannet_val.tfrecords --output_dir=/path/to/save/processd/data
+```
+
+About dataset: Scannet
+
+[ScanNet/ScanNet (github.com)](https://github.com/ScanNet/ScanNet)
+
+> ScanNet is an RGB-D video dataset containing 2.5 million views in more than 1500 scans, annotated with 3D camera poses, surface reconstructions, and instance-level semantic segmentations.
+
+The dataset is about 1.2TB, and we need to choose by the id to save the space. The scene id is listed below:
+
+[ScanNet 数据集处理（一)]https://blog.csdn.net/qq_43552777/article/details/116702029)
+
+[scans_test_list](http://kaldir.vc.in.tum.de/scannet/v2/scans_test.txt)
+
+[scans_list](http://kaldir.vc.in.tum.de/scannet/v2/scans.txt)
+
+the we use the followed command to download:
+
+```python
+usage: download-scannet.py [-h] -o OUT_DIR [--task_data] [--label_map] [--v1]
+                           [--id ID] [--preprocessed_frames]
+                           [--test_frames_2d] [--type TYPE]
+python .\download-scannet.py -o .\data\scans\ --id scene0768_00
+```
+
+Then we use reader.py to extract the image:
+
+Developed and tested with **python 2.7.**
+
+Usage:
+
+```
+python reader.py --filename [.sens file to export data from] --output_path [output directory to export data to]
+Options:
+--export_depth_images: export all depth frames as 16-bit pngs (depth shift 1000)
+--export_color_images: export all color frames as 8-bit rgb jpgs
+--export_poses: export all camera poses (4x4 matrix, camera to world)
+--export_intrinsics: export camera intrinsics (4x4 matrix)
 ```
 
 ### Training
-To train the network from the pretrained DeepLab network, please first download the DeepLab model [here](https://github.com/DrSleep/tensorflow-deeplab-resnet) (under the Caffe to TensorFlow conversion), and then run the following command.
+
+Run the following command to train our network:
+
 ```bash
-python train_planenet.py --restore=0 --modelPathDeepLab="path to the deep lab model" --dataFolder="folder which contains tfrecords files"
+python main.py train with dataset.root_dir=/path/to/save/processd/data
 ```
 
 ### Evaluation
-Please first download our trained network from [here](https://drive.google.com/open?id=1BhSDqDE33K438qZ3KFEFabfOlcIxrXiC) (or [here](https://mega.nz/#!sjpT2DiQ!Uo-6hxyldmtnPoKk3TTdUHKZADRGy6nIPlmAeVzJs_8)) and put the uncompressed folder under ./checkpoint folder.
 
-To evaluate the performance against existing methods, please run:
-```bash
-python evaluate.py --dataFolder="folder which contains tfrecords files"
-```
-
-### Plane representation
-A plane is represented by three parameters and a segmentation mask. If the plane equation is **nx**=d where **n** is the surface normal and d is the plane offset, then plane parameters are **n**d. The plane equation is in the camera frame, where *x* points to the right, *y* points to the front, and *z* points to the up.
-
-### Applications
-Please first download our trained network (see [Evaluation](### Evaluation) section for details). Script *predict.py* predicts and visualizes custom images (if "customImageFolder" is specified) or ScanNet testing images (if "dataFolder" is specified).
+Run the following command to evaluate the performance:
 
 ```bash
-python predict.py --customImageFolder="folder which contains custom images"
-python predict.py --dataFolder="folder which contains tfrecords files" [--startIndex=0] [--numImages=30]
+python main.py eval with dataset.root_dir=/path/to/save/processd/data resume_dir=/path/to/pretrained.pt dataset.batch_size=1
 ```
 
-This will generate visualization images, a webpage containing all the visualization, as well as cache files under folder "predict/".
+### Prediction
 
-Same commands can be used for various applications by providing optional arguments, *applicationType*, *imageIndex*, *textureImageFilename*, and some application-specific arguments. The following commands are used to generate visualizations in the submission. (The TV application needs more manual specification for better visualization.)
+Run the following command to predict on a single image:
 
 ```bash
-python predict.py --dataFolder=/mnt/vision/Data/PlaneNet/ --textureImageFilename=texture_images/CVPR.jpg --imageIndex=118 --applicationType=logo_texture --startIndex=118 --numImages=1
-python predict.py --dataFolder=/mnt/vision/Data/PlaneNet/ --textureImageFilename=texture_images/CVPR.jpg --imageIndex=118 --applicationType=logo_video --startIndex=118 --numImages=1
-python predict.py --dataFolder=/mnt/vision/Data/PlaneNet/ --textureImageFilename=texture_images/checkerboard.jpg --imageIndex=72 --applicationType=wall_texture --wallIndices=7,9 --startIndex=72 --numImages=1
-python predict.py --dataFolder=/mnt/vision/Data/PlaneNet/ --textureImageFilename=texture_images/checkerboard.jpg --imageIndex=72 --applicationType=wall_video --wallIndices=7,9 --startIndex=72 --numImages=1
-python predict.py --customImageFolder=my_images/TV/ --textureImageFilename=texture_images/TV.mp4 --imageIndex=0 --applicationType=TV --wallIndices=2,9
-python predict.py --customImageFolder=my_images/ruler --textureImageFilename=texture_images/ruler_36.png --imageIndex=0 --applicationType=ruler --startPixel=950,444 --endPixel=1120,2220
+python predict.py with resume_dir=pretrained.pt image_path=/path/to/image
 ```
 
-Note that, the above script generate image sequences for video applications. Please run the following command under the image sequence folder to generate a video:
-```bash
-ffmpeg -r 60 -f image2 -s 640x480 -i %04d.png -vcodec libx264 -crf 25 -pix_fmt yuv420p video.mp4
+## Acknowledgements
+
+We thank [Chen Liu](http://art-programmer.github.io/index.html) for his great works and repos.
+
+## Citation
+
+Please cite our paper for any purpose of usage.
+
+```
+@inproceedings{YuZLZG19,
+  author    = {Zehao Yu and Jia Zheng and Dongze Lian and Zihan Zhou and Shenghua Gao},
+  title     = {Single-Image Piece-wise Planar 3D Reconstruction via Associative Embedding},
+  booktitle = {CVPR},
+  pages     = {1029--1037},
+  year      = {2019}
+}
 ```
 
-To check out the pool ball application, please run the following commands.
-```bash
-python predict.py --customImageFolder=my_images/pool --imageIndex=0 --applicationType=pool --estimateFocalLength=False
-cd pool
-python pool.py
-```
+~~~
 
-Use mouse to play:)
-
-## Contact
-
-If you have any questions, please contact me at chenliu@wustl.edu.
+~~~
